@@ -26,6 +26,4 @@ WorldView | Pan-Sharp | N/A | Various | ✔ | various | ❌ | ❌ | [Link](https
 GeoEye | Pan-Sharp | N/A | Various | ✔ | various | ❌ | ❌ | [Link](https://earth.esa.int/eogateway/missions/geoeye-1)
 QuickBird | Pan-Sharp | N/A | Various | ✔ | various | ❌ | ❌ | [Link](https://www.satimagingcorp.com/satellite-sensors/quickbird/)
 
-
-
 ## Method
