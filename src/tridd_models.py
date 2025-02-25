@@ -45,7 +45,7 @@ class TriDD(nn.Module):
         self.conv1 = nn.Conv3d(self.proj, 16, kernel_size=(1,1,1), bias=False)
         self.conv2 = nn.Conv3d(16, 64, kernel_size=(1,1,1), bias=False)
         # shortcut: 將輸入從 8 通道轉成 64 通道
-        self.shortcut1 = nn.Conv3d(8, 64, kernel_size=(1,1,1), bias=False)
+        self.shortcut1 = nn.Conv3d(self.proj, 64, kernel_size=(1,1,1), bias=False)
         
         # --- Residual Block 2 ---
         # 輸入: (B, 64, 1, 28, 28) → 經過此 block 輸出: (B, 8, 1, 28, 28)

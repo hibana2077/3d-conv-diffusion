@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 from torchvision.utils import save_image, make_grid
 from torch.optim import Adam
+from datetime import datetime
 
 import math
 
@@ -29,20 +30,12 @@ DEVICE = torch.device("cuda:0" if cuda else "cpu")
 dataset = 'MNIST'
 img_size = (32, 32, 3)   if dataset == "CIFAR10" else (28, 28, 1) # (width, height, channels)
 
-timestep_embedding_dim = 256
-n_layers = 8
-hidden_dim = 256
-n_timesteps = 1000
-beta_minmax=[1e-4, 2e-2]
-
 train_batch_size = 128
 inference_batch_size = 64
 lr = 5e-5
 epochs = 50
 
 seed = 1234
-
-hidden_dims = [hidden_dim for _ in range(n_layers)]
 torch.manual_seed(seed)
 np.random.seed(seed)
 
@@ -72,7 +65,7 @@ discriminator.to(DEVICE)
 model = TriDD(
     img_res=img_size,
     label_dim=10,
-    proj=8,
+    proj=10,
 ).to(DEVICE)
 
 optimizer = Adam(model.parameters(), lr=lr)
@@ -88,6 +81,7 @@ print("Number of model parameters(M): ", count_parameters(model)/1e+6)
 print("Start training TriDD...")
 model.train()
 
+rec_loss = []
 for epoch in range(epochs):
     noise_prediction_loss = 0
     for batch_idx, (x, y) in tqdm(enumerate(train_loader), total=len(train_loader)):
@@ -108,9 +102,27 @@ for epoch in range(epochs):
 
         noise_prediction_loss += loss.item()
 
+    rec_loss.append(noise_prediction_loss / batch_idx)
     print("\tEpoch", epoch + 1, "complete!", "\tDenoising Loss: ", noise_prediction_loss / batch_idx)
 
 print("Finish!!")
 
 # save the model
 torch.save(model.state_dict(), '3dd.pt')
+
+exp_data = {
+    'rec_loss': rec_loss,
+    'dataset': dataset,
+    'img_size': img_size,
+    'train_batch_size': train_batch_size,
+    'inference_batch_size': inference_batch_size,
+    'lr': lr,
+    'epochs': epochs,
+    'seed': seed,
+}
+
+# save the experiment data in json
+import json
+file_name = f"rec/exp_{datetime.now().strftime('%Y_%m_%d_%H_%M')}.json"
+with open(file_name, 'w') as f:
+    json.dump(exp_data, f)
