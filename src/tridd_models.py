@@ -64,6 +64,7 @@ class TriDD(nn.Module):
         label: Tensor, shape (B, label_dim)
         """
         # 1. 由 label 產生條件特徵
+        label = F.one_hot(label, num_classes=self.label_dim)  # (B, label_dim)
         label_emb_feature = self.label_emb(label)              # (B, label_dim, hidden_dim)
         label_emb_feature = self.label_comp(label_emb_feature).squeeze(1)  # (B, hidden_dim)
         label_feature = self.label_mlp(label_emb_feature)        # (B, hidden_dim)
@@ -99,7 +100,8 @@ class TriDD(nn.Module):
 
 if __name__ == "__main__":
     test_noise = torch.randn(2, 1, 28, 28)
-    test_label = torch.randint(0, 10, (2, 10))
+    test_label = torch.randint(0, 10, (2,))
     model = TriDD()
+    print(f"noise shape: {test_noise.shape}, label shape: {test_label.shape}")
     test_output = model(test_noise, test_label)
     print(test_output.shape)  # 預期為 (2, 1, 28, 28)

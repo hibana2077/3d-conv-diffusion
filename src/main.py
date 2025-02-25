@@ -16,6 +16,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 from models import SinusoidalPosEmb, ConvBlock, Denoiser, Diffusion
+from timm.models.ghostnet import ghostnet_050
 from tridd_models import TriDD
 
 # Model Hyperparameters
@@ -61,6 +62,13 @@ else:
 train_loader = DataLoader(dataset=train_dataset, batch_size=train_batch_size, shuffle=True, **kwargs)
 test_loader  = DataLoader(dataset=test_dataset,  batch_size=inference_batch_size, shuffle=False,  **kwargs)
 
+discriminator = ghostnet_050(num_classes=10, in_chans=3 if dataset == 'CIFAR10' else 1)
+disc_pth = './cifar10_model.pth' if dataset == 'CIFAR10' else './mnist_model.pth'
+discriminator.load_state_dict(torch.load(disc_pth, weights_only=True))
+for param in discriminator.parameters():
+    param.requires_grad = False
+discriminator.to(DEVICE)
+
 model = TriDD(
     img_res=img_size,
     label_dim=10,
@@ -68,6 +76,7 @@ model = TriDD(
 ).to(DEVICE)
 
 optimizer = Adam(model.parameters(), lr=lr)
+label_sim_loss = nn.CrossEntropyLoss()
 denoising_loss = nn.MSELoss()
 
 def count_parameters(model:nn.Module):
@@ -76,7 +85,7 @@ def count_parameters(model:nn.Module):
 print(f"Device: {DEVICE}")
 print("Number of model parameters(M): ", count_parameters(model)/1e+6)
 
-print("Start training DDPMs...")
+print("Start training TriDD...")
 model.train()
 
 for epoch in range(epochs):
@@ -84,19 +93,24 @@ for epoch in range(epochs):
     for batch_idx, (x, y) in tqdm(enumerate(train_loader), total=len(train_loader)):
         optimizer.zero_grad()
 
-        x = x.to(DEVICE)
+        y = y.to(DEVICE)
+        noise = torch.randn_like(x).to(DEVICE)
+        noise = noise / noise.std(dim=(1, 2, 3), keepdim=True)
+        noise = noise.detach()
+        # print(noise.shape, y.shape)
+        out = model(noise, y)# generated image
 
-        noisy_input, epsilon, pred_epsilon = diffusion(x)
-        loss = denoising_loss(pred_epsilon, epsilon)
-
-        noise_prediction_loss += loss.item()
-
+        # discriminator loss
+        pred = discriminator(out)
+        loss = label_sim_loss(pred, y)
         loss.backward()
         optimizer.step()
+
+        noise_prediction_loss += loss.item()
 
     print("\tEpoch", epoch + 1, "complete!", "\tDenoising Loss: ", noise_prediction_loss / batch_idx)
 
 print("Finish!!")
 
 # save the model
-torch.save(diffusion.state_dict(), 'diffusion.pt')
+torch.save(model.state_dict(), '3dd.pt')
