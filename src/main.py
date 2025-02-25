@@ -10,7 +10,12 @@ from torchvision.utils import save_image, make_grid
 from torch.optim import Adam
 
 import math
-import timm
+
+from torchvision.datasets import MNIST, CIFAR10
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+
+from models import SinusoidalPosEmb, ConvBlock, Denoiser, Diffusion
 
 # Model Hyperparameters
 
@@ -31,10 +36,68 @@ beta_minmax=[1e-4, 2e-2]
 train_batch_size = 128
 inference_batch_size = 64
 lr = 5e-5
-epochs = 200
+epochs = 50
 
 seed = 1234
 
 hidden_dims = [hidden_dim for _ in range(n_layers)]
 torch.manual_seed(seed)
 np.random.seed(seed)
+
+transform = transforms.Compose([
+        transforms.ToTensor(),
+])
+
+kwargs = {'num_workers': 1, 'pin_memory': True}
+
+if dataset == 'CIFAR10':
+    train_dataset = CIFAR10(dataset_path, transform=transform, train=True, download=True)
+    test_dataset  = CIFAR10(dataset_path, transform=transform, train=False, download=True)
+else:
+    train_dataset = MNIST(dataset_path, transform=transform, train=True, download=True)
+    test_dataset  = MNIST(dataset_path, transform=transform, train=False, download=True)
+
+train_loader = DataLoader(dataset=train_dataset, batch_size=train_batch_size, shuffle=True, **kwargs)
+test_loader  = DataLoader(dataset=test_dataset,  batch_size=inference_batch_size, shuffle=False,  **kwargs)
+
+model = Denoiser(image_resolution=img_size,
+                 hidden_dims=hidden_dims,
+                 diffusion_time_embedding_dim=timestep_embedding_dim,
+                 n_times=n_timesteps).to(DEVICE)
+
+diffusion = Diffusion(model, image_resolution=img_size, n_times=n_timesteps,
+                      beta_minmax=beta_minmax, device=DEVICE).to(DEVICE)
+
+optimizer = Adam(diffusion.parameters(), lr=lr)
+denoising_loss = nn.MSELoss()
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+print(f"Device: {DEVICE}")
+print("Number of model parameters(M): ", count_parameters(diffusion)/1e+6)
+
+print("Start training DDPMs...")
+model.train()
+
+for epoch in range(epochs):
+    noise_prediction_loss = 0
+    for batch_idx, (x, _) in tqdm(enumerate(train_loader), total=len(train_loader)):
+        optimizer.zero_grad()
+
+        x = x.to(DEVICE)
+
+        noisy_input, epsilon, pred_epsilon = diffusion(x)
+        loss = denoising_loss(pred_epsilon, epsilon)
+
+        noise_prediction_loss += loss.item()
+
+        loss.backward()
+        optimizer.step()
+
+    print("\tEpoch", epoch + 1, "complete!", "\tDenoising Loss: ", noise_prediction_loss / batch_idx)
+
+print("Finish!!")
+
+# save the model
+torch.save(diffusion.state_dict(), 'diffusion.pt')
