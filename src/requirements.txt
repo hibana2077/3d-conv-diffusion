@@ -1,3 +1,4 @@
 timm
 matplotlib
 tqdm
+transformers
