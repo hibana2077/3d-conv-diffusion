@@ -85,6 +85,7 @@ class TriDD(nn.Module):
         out = F.relu(self.conv1(x))                            # (B, 16, 1, 28, 28)
         out = self.conv2(out)                                  # (B, 64, 1, 28, 28)
         out = F.relu(out + residual)                           # Residual connection
+        temp_out = out
         
         # --- Residual Block 2 ---
         # 主路徑：經過 conv3 與 conv4
@@ -96,12 +97,12 @@ class TriDD(nn.Module):
         # --- 最後一層卷積 ---
         out = self.conv5(out)                                  # (B, 1, 1, 28, 28)
         out = out.squeeze(1)                                   # 調整形狀為 (B, 1, 28, 28)
-        return out
+        return temp_out, out
 
 if __name__ == "__main__":
     test_noise = torch.randn(2, 1, 28, 28)
     test_label = torch.randint(0, 10, (2,))
     model = TriDD()
     print(f"noise shape: {test_noise.shape}, label shape: {test_label.shape}")
-    test_output = model(test_noise, test_label)
+    _,test_output = model(test_noise, test_label)
     print(test_output.shape)  # 預期為 (2, 1, 28, 28)
