@@ -16,6 +16,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 from models import SinusoidalPosEmb, ConvBlock, Denoiser, Diffusion
+from tridd_models import TriDD
 
 # Model Hyperparameters
 
@@ -60,29 +61,27 @@ else:
 train_loader = DataLoader(dataset=train_dataset, batch_size=train_batch_size, shuffle=True, **kwargs)
 test_loader  = DataLoader(dataset=test_dataset,  batch_size=inference_batch_size, shuffle=False,  **kwargs)
 
-model = Denoiser(image_resolution=img_size,
-                 hidden_dims=hidden_dims,
-                 diffusion_time_embedding_dim=timestep_embedding_dim,
-                 n_times=n_timesteps).to(DEVICE)
+model = TriDD(
+    img_res=img_size,
+    label_dim=10,
+    proj=8,
+).to(DEVICE)
 
-diffusion = Diffusion(model, image_resolution=img_size, n_times=n_timesteps,
-                      beta_minmax=beta_minmax, device=DEVICE).to(DEVICE)
-
-optimizer = Adam(diffusion.parameters(), lr=lr)
+optimizer = Adam(model.parameters(), lr=lr)
 denoising_loss = nn.MSELoss()
 
-def count_parameters(model):
+def count_parameters(model:nn.Module):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 print(f"Device: {DEVICE}")
-print("Number of model parameters(M): ", count_parameters(diffusion)/1e+6)
+print("Number of model parameters(M): ", count_parameters(model)/1e+6)
 
 print("Start training DDPMs...")
 model.train()
 
 for epoch in range(epochs):
     noise_prediction_loss = 0
-    for batch_idx, (x, _) in tqdm(enumerate(train_loader), total=len(train_loader)):
+    for batch_idx, (x, y) in tqdm(enumerate(train_loader), total=len(train_loader)):
         optimizer.zero_grad()
 
         x = x.to(DEVICE)
