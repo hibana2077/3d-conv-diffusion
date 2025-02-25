@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 from models import SinusoidalPosEmb, ConvBlock, Denoiser, Diffusion
 from timm.models.ghostnet import ghostnet_050
 from tridd_models import TriDD
+from utils import add_noise_process
 
 # Model Hyperparameters
 
@@ -34,7 +35,7 @@ train_batch_size = 128
 inference_batch_size = 64
 test_batch_size = 10
 lr = 5e-5
-epochs = 25
+epochs = 5
 
 label_dim = 10
 triddm_proj = 10
@@ -95,14 +96,20 @@ for epoch in range(epochs):
         optimizer.zero_grad()
 
         y = y.to(DEVICE)
-        noise = torch.randn_like(x).to(DEVICE)
-        noise = noise / noise.std(dim=(1, 2, 3), keepdim=True)
-        noise = noise.detach()
-        out = model(noise, y)# generated image
+        noise_stack = add_noise_process(x)
+        noise = noise_stack[:, 0].to(DEVICE)# t=1000
+        noise_hid = noise_stack[:, 1].to(DEVICE)# t=500
+        original = noise_stack[:, 2].to(DEVICE)# t=0
+        out_hid, out = model(noise, y)# generated image
+
+        # denoising loss
+        deno_loss = denoising_loss(out_hid, noise_hid) + denoising_loss(out, original)
 
         # discriminator loss
         pred = discriminator(out)
-        loss = label_sim_loss(pred, y)
+        label_loss = label_sim_loss(pred, y)
+
+        loss = deno_loss + label_loss
         loss.backward()
         optimizer.step()
 
@@ -151,7 +158,7 @@ with torch.no_grad():
     noise = noise / noise.std(dim=(1, 2, 3), keepdim=True)
     noise = noise.detach()
     print(f"noise shape: {noise.shape}, label shape: {class_labels.shape}")
-    out = model(noise, class_labels)
+    _,out = model(noise, class_labels)
     out = out.cpu()
     print(out.shape)
     nrow = int(math.sqrt(test_batch_size))

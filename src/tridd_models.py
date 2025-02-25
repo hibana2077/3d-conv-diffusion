@@ -85,7 +85,7 @@ class TriDD(nn.Module):
         out = F.relu(self.conv1(x))                            # (B, 16, 1, 28, 28)
         out = self.conv2(out)                                  # (B, 64, 1, 28, 28)
         out = F.relu(out + residual)                           # Residual connection
-        temp_out = out
+        temp_out = out[:, -1, :, :, :]                         # (B, 1, 28, 28)
         
         # --- Residual Block 2 ---
         # 主路徑：經過 conv3 與 conv4
