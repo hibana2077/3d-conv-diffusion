@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 # Define data transformations
 def get_transforms(dataset):
