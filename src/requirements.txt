@@ -2,3 +2,4 @@ timm
 matplotlib
 tqdm
 transformers
+pytorch-ignite
