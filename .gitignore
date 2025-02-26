@@ -1,2 +1,3 @@
 src/cifar10_model.pth
 src/3dd.pt
+src/__pycache__
