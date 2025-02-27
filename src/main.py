@@ -142,7 +142,7 @@ for epoch in range(epochs):
         pred = discriminator(out)
         label_loss = label_sim_loss(pred, y)
 
-        loss = deno_loss #+ label_loss
+        loss = deno_loss + 0.3*label_loss if epoch>0 and rec_acc[-1] > 0.79 else deno_loss
         loss.backward()
         optimizer.step()
 
@@ -176,7 +176,7 @@ for epoch in range(epochs):
         # discriminator loss
         pred = discriminator(out)
         label_loss = label_sim_loss(pred, y)
-        loss = deno_loss #+ label_loss
+        loss = deno_loss + 0.3*label_loss if rec_acc[-1] > 0.79 else deno_loss
         test_noise_prediction_loss += loss.item()
         # calculate accuracy
         pred = torch.argmax(discriminator(out), dim=1)
