@@ -1,6 +1,9 @@
 import torch
+import torch.nn as nn
 import math
 import numpy as np
+from tqdm import tqdm
+from torch.utils.data import Dataset, DataLoader, Subset
 
 def add_noise_process(x):
     """
@@ -17,7 +20,7 @@ def add_noise_process(x):
     device = x.device
     dtype = x.dtype
     out = []
-    for t in [1000, 8, 0]:
+    for t in [1000, 10, 3, 0]:
         # 計算噪聲強度比例 s (t=0: 無噪聲, t=1000: 全噪聲)
         s = t / 1000.0
         # 混合係數：sqrt(1-s) 用於原圖，sqrt(s) 用於噪聲
@@ -74,6 +77,42 @@ def fid_score_torch(x: torch.Tensor, y: torch.Tensor) -> float:
     
     fid = diff_sq + torch.trace(sigma_x) + torch.trace(sigma_y) - 2 * sqrt_trace
     return fid.item()
+
+def correct_subset(model:nn.Module, dataset:Dataset, device)->Dataset:
+    # 將 discriminator 設為評估模式
+    model.eval()
+
+    correct_indices = []
+
+    # Create DataLoader for the dataset
+    batch_size = 128  # Adjust based on your GPU memory
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    
+    # Process batches instead of individual samples
+    for batch_imgs, batch_labels in tqdm(dataloader):
+        # Move batch to specified device
+        batch_imgs = batch_imgs.to(device)
+        batch_labels = batch_labels.to(device)
+        
+        # Get model predictions
+        with torch.no_grad():
+            outputs = model(batch_imgs)
+        preds = outputs.argmax(dim=1)
+        
+        # Find indices of correctly classified samples in this batch
+        correct_mask = (preds == batch_labels)
+        # Convert to indices in the original dataset
+        batch_indices = torch.arange(len(correct_indices), 
+                                    len(correct_indices) + len(batch_labels), 
+                                    device=device)
+        correct_batch_indices = batch_indices[correct_mask].cpu().tolist()
+        correct_indices.extend(correct_batch_indices)
+
+    # Create a subset with only correctly classified data
+    print(f"Correctly classified samples: {len(correct_indices)}/ {len(dataset)}")
+    print(f"Correctly classified samples ratio: {len(correct_indices)/ len(dataset):.3f}")
+    correct_dataset = Subset(dataset, correct_indices)
+    return correct_dataset
 
 if __name__ == "__main__":
     # test_x = torch.randn(2, 3, 28, 28)

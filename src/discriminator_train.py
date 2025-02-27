@@ -19,14 +19,11 @@ print(f"Using device: {device}")
 def get_transforms(dataset):
     if dataset == 'mnist':
         transform = transforms.Compose([
-            transforms.Resize((32, 32)),
             transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,))
         ])
     else:  # cifar10
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
     return transform
 
@@ -34,7 +31,7 @@ def load_data(dataset, batch_size):
     transform = get_transforms(dataset)
     
     if dataset == 'mnist':
-        # MNIST has single channel, convert to 3 channels
+        # MNIST has single channel
         train_dataset = torchvision.datasets.MNIST(root='~/datasets', train=True, download=True, transform=transform)
         test_dataset = torchvision.datasets.MNIST(root='~/datasets', train=False, download=True, transform=transform)
     else:  # cifar10

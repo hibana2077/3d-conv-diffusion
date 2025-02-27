@@ -14,12 +14,12 @@ import math
 
 from torchvision.datasets import MNIST, CIFAR10
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from models import SinusoidalPosEmb, ConvBlock, Denoiser, Diffusion
 from timm.models.ghostnet import ghostnet_050
 from tridd_models import TriDD
-from utils import add_noise_process,fid_score_torch
+from utils import add_noise_process, correct_subset
 
 # Model Hyperparameters
 
@@ -35,14 +35,14 @@ train_batch_size = 4096
 inference_batch_size = 1024
 test_batch_size = 10
 lr = 5e-4
-epochs = 25
-gt_weight = 1.1
+epochs = 40
+gt_weight = 3
 
 label_dim = 10
 triddm_proj = 32
 classes = 10
 
-seed = 1234
+seed = 114514
 torch.manual_seed(seed)
 np.random.seed(seed)
 
@@ -52,22 +52,26 @@ transform = transforms.Compose([
 
 kwargs = {'num_workers': 1, 'pin_memory': True}
 
-if dataset == 'CIFAR10':
-    train_dataset = CIFAR10(dataset_path, transform=transform, train=True, download=True)
-    test_dataset  = CIFAR10(dataset_path, transform=transform, train=False, download=True)
-else:
-    train_dataset = MNIST(dataset_path, transform=transform, train=True, download=True)
-    test_dataset  = MNIST(dataset_path, transform=transform, train=False, download=True)
-
-train_loader = DataLoader(dataset=train_dataset, batch_size=train_batch_size, shuffle=True, **kwargs)
-test_loader  = DataLoader(dataset=test_dataset,  batch_size=inference_batch_size, shuffle=False,  **kwargs)
-
 discriminator = ghostnet_050(num_classes=classes, in_chans=3 if dataset == 'CIFAR10' else 1)
 disc_pth = './cifar10_model.pth' if dataset == 'CIFAR10' else './mnist_model.pth'
 discriminator.load_state_dict(torch.load(disc_pth, weights_only=True))
 for param in discriminator.parameters():
     param.requires_grad = False
 discriminator.to(DEVICE)
+
+if dataset == 'CIFAR10':
+    train_dataset = CIFAR10(dataset_path, transform=transform, train=True, download=True)
+    test_dataset  = CIFAR10(dataset_path, transform=transform, train=False, download=True)
+    train_dataset = correct_subset(discriminator, train_dataset, DEVICE)
+    test_dataset  = correct_subset(discriminator, test_dataset, DEVICE)
+else:
+    train_dataset = MNIST(dataset_path, transform=transform, train=True, download=True)
+    test_dataset  = MNIST(dataset_path, transform=transform, train=False, download=True)
+    train_dataset = correct_subset(discriminator, train_dataset, DEVICE)
+    test_dataset  = correct_subset(discriminator, test_dataset, DEVICE)
+
+train_loader = DataLoader(dataset=train_dataset, batch_size=train_batch_size, shuffle=True, **kwargs)
+test_loader  = DataLoader(dataset=test_dataset,  batch_size=inference_batch_size, shuffle=False,  **kwargs)
 
 model = TriDD(
     img_res=img_size,
@@ -86,6 +90,7 @@ def count_parameters(model:nn.Module):
 
 print(f"Device: {DEVICE}")
 print("Number of model parameters(M): ", count_parameters(model)/1e+6)
+print("Number of discriminator parameters(M): ", count_parameters(discriminator)/1e+6)
 
 print("Start training TriDD...")
 model.train()
@@ -95,6 +100,7 @@ rec_acc = []
 noise_img = {
     "t1000": [],
     "t500": [],
+    "t10": [],
     "t0": [],
     "out": [],
 }
@@ -107,6 +113,8 @@ for epoch in range(epochs):
 
     # train
     model.train()
+    total_correct = 0
+    total_samples = 0
     for batch_idx, (x, y) in tqdm(enumerate(train_loader), total=len(train_loader)):
         optimizer.zero_grad()
 
@@ -115,60 +123,67 @@ for epoch in range(epochs):
         if epoch not in add_cnt:
             noise_img["t1000"].append(noise_stack[0, 0])
             noise_img["t500"].append(noise_stack[0, 1])
-            noise_img["t0"].append(noise_stack[0, 2])
+            noise_img["t10"].append(noise_stack[0, 2])
+            noise_img["t0"].append(noise_stack[0, 3])
         noise = noise_stack[:, 0].to(DEVICE)# t=1000
-        noise_hid = noise_stack[:, 1].to(DEVICE)# t=500
-        original = noise_stack[:, 2].to(DEVICE)# t=0
-        out_hid, out = model(noise, y)# generated image
+        noise_hid_1 = noise_stack[:, 1].to(DEVICE)# t=500
+        noise_hid_2 = noise_stack[:, 2].to(DEVICE)# t=10
+        original = noise_stack[:, 3].to(DEVICE)# t=0
+        out_hids, out = model(noise, y)# generated image
         if epoch not in add_cnt:
             # print(f"Save epoch {epoch} noise images")
             noise_img["out"].append(out[0])
             add_cnt.append(epoch)
         # denoising loss
-        deno_loss = denoising_loss(out_hid, noise_hid) + gt_weight * denoising_loss(out, original)
+        # deno_loss = denoising_loss(out_hid, noise_hid) + gt_weight * denoising_loss(out, original)
+        deno_loss = denoising_loss(out_hids[0], noise_hid_1) + denoising_loss(out_hids[1], noise_hid_2) + gt_weight * denoising_loss(out, original)
 
         # discriminator loss
         pred = discriminator(out)
         label_loss = label_sim_loss(pred, y)
 
-        loss = deno_loss + label_loss
+        loss = deno_loss #+ label_loss
         loss.backward()
         optimizer.step()
 
         noise_prediction_loss += loss.item()
 
         # calculate accuracy
-        pred = torch.argmax(pred, dim=1)
-        acc += (pred == y).sum().item()
-        batch_size = x.size(0)
-        acc /= batch_size
+        pred = torch.argmax(discriminator(out), dim=1)
+        total_correct += (pred == y).sum().item()
+        total_samples += x.size(0)
 
+    acc = total_correct / total_samples
     rec_acc.append(acc)
     rec_loss.append(noise_prediction_loss / batch_idx)
     print(f"Epoch {epoch+1}/{epochs} complete! Denoising Loss: {noise_prediction_loss / batch_idx:.4f}, Accuracy: {acc:.4f}")
 
     # test
     model.eval()
+    total_correct = 0
+    total_samples = 0
     for batch_idx, (x, y) in tqdm(enumerate(test_loader), total=len(test_loader)):
         y = y.to(DEVICE)
         noise_stack = add_noise_process(x)
         noise = noise_stack[:, 0].to(DEVICE)
-        noise_hid = noise_stack[:, 1].to(DEVICE)
-        original = noise_stack[:, 2].to(DEVICE)
-        out_hid, out = model(noise, y)
+        noise_hid_1 = noise_stack[:, 1].to(DEVICE)
+        noise_hid_2 = noise_stack[:, 2].to(DEVICE)
+        original = noise_stack[:, 3].to(DEVICE)
+        out_hids, out = model(noise, y)
         # denoising loss
-        deno_loss = denoising_loss(out_hid, noise_hid) + gt_weight * denoising_loss(out, original)
+        # deno_loss = denoising_loss(out_hid, noise_hid) + gt_weight * denoising_loss(out, original)
+        deno_loss = denoising_loss(out_hids[0], noise_hid_1) + denoising_loss(out_hids[1], noise_hid_2) + gt_weight * denoising_loss(out, original)
         # discriminator loss
         pred = discriminator(out)
         label_loss = label_sim_loss(pred, y)
-        loss = deno_loss + label_loss
+        loss = deno_loss #+ label_loss
         test_noise_prediction_loss += loss.item()
         # calculate accuracy
-        pred = torch.argmax(pred, dim=1)
-        test_acc += (pred == y).sum().item()
-        batch_size = x.size(0)
-        test_acc /= batch_size
+        pred = torch.argmax(discriminator(out), dim=1)
+        total_correct += (pred == y).sum().item()
+        total_samples += x.size(0)
 
+    test_acc = total_correct / total_samples
     print(f"Test complete! Test Denoising Loss: {test_noise_prediction_loss / batch_idx:.4f}, Test Accuracy: {test_acc:.4f}")
 
 print("Finish!!")
@@ -203,14 +218,14 @@ model.eval()
 with torch.no_grad():
     class_labels = torch.randint(0, classes, (test_batch_size,)).to(DEVICE)
     noise = torch.randn(test_batch_size, *img_size).permute(0, 3, 1, 2).to(DEVICE)
-    noise = noise / noise.std(dim=(1, 2, 3), keepdim=True)
+    # noise = noise / noise.std(dim=(1, 2, 3), keepdim=True)
     noise = noise.detach()
     print(f"noise shape: {noise.shape}, label shape: {class_labels.shape}")
     _,out = model(noise, class_labels)
     out = out.cpu()
     print(out.shape)
     nrow = int(math.sqrt(test_batch_size))
-    out = make_grid(out, nrow=nrow, normalize=True)
+    out = make_grid(out, nrow=nrow, normalize=False)
     # save the image
     save_image(out, 'generated_images.png')
 
@@ -219,5 +234,5 @@ for key in noise_img.keys():
     noise_img[key] = torch.stack(noise_img[key])
     print(f"noise_img[{key}].shape: {noise_img[key].shape}")
     nrow = int(math.sqrt(noise_img[key].shape[0]))
-    out = make_grid(noise_img[key], nrow=nrow, normalize=True)
+    out = make_grid(noise_img[key], nrow=nrow, normalize=False)
     save_image(out, f'noise_{key}.png')
