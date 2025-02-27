@@ -35,7 +35,7 @@ train_batch_size = 4096
 inference_batch_size = 1024
 test_batch_size = 10
 lr = 5e-4
-epochs = 40
+epochs = 200
 gt_weight = 3
 
 label_dim = 10

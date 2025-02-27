@@ -20,7 +20,7 @@ def add_noise_process(x):
     device = x.device
     dtype = x.dtype
     out = []
-    for t in [1000, 10, 3, 0]:
+    for t in [1000, 100, 10, 0]:
         # 計算噪聲強度比例 s (t=0: 無噪聲, t=1000: 全噪聲)
         s = t / 1000.0
         # 混合係數：sqrt(1-s) 用於原圖，sqrt(s) 用於噪聲
