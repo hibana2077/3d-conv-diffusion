@@ -28,7 +28,7 @@ dataset_path = '~/datasets'
 cuda = True
 DEVICE = torch.device("cuda:0" if cuda else "cpu")
 
-dataset = 'MNIST'
+dataset = 'CIFAR10'
 img_size = (32, 32, 3)   if dataset == "CIFAR10" else (28, 28, 1) # (width, height, channels)
 
 train_batch_size = 4096
