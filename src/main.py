@@ -28,14 +28,20 @@ dataset_path = '~/datasets'
 cuda = True
 DEVICE = torch.device("cuda:0" if cuda else "cpu")
 
-dataset = 'CIFAR10'
-img_size = (32, 32, 3)   if dataset == "CIFAR10" else (28, 28, 1) # (width, height, channels)
+datasets_dict = {
+    "MNIST": (28, 28, 1),
+    "CIFAR10": (32, 32, 3),
+    "CelebA": (64, 64, 3),
+}
 
-train_batch_size = 4096
-inference_batch_size = 1024
+dataset = 'CIFAR10'
+img_size = datasets_dict[dataset]
+
+train_batch_size = 512
+inference_batch_size = 512
 test_batch_size = 10
-lr = 3e-4
-epochs = 200
+lr = 5e-4
+epochs = 40
 gt_weight = 3
 
 label_dim = 10
@@ -84,6 +90,7 @@ model = TriDD(
 optimizer = AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01)
 label_sim_loss = nn.CrossEntropyLoss()
 denoising_loss = nn.MSELoss()
+l1_loss = nn.L1Loss()
 
 def count_parameters(model:nn.Module):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

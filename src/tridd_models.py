@@ -72,7 +72,7 @@ class TriDD(nn.Module):
         self.shortcut2 = nn.Conv3d(64, 8, kernel_size=(3,3,3), bias=False, padding=1)
 
         # --- Residual Block 3,4,5 (重複部分，用 for loop 建立) ---
-        self.residual_blocks = nn.ModuleList([BasicBlock(8, 16, 8) for _ in range(10)])
+        self.residual_blocks = nn.ModuleList([BasicBlock(8, 16, 8) for _ in range(5)])
 
         # --- 最後一層卷積 ---
         self.conv5 = nn.Conv3d(8, 1, kernel_size=(3,3,3), bias=False, padding=1)
