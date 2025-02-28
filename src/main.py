@@ -34,7 +34,7 @@ img_size = (32, 32, 3)   if dataset == "CIFAR10" else (28, 28, 1) # (width, heig
 train_batch_size = 4096
 inference_batch_size = 1024
 test_batch_size = 10
-lr = 5e-4
+lr = 3e-4
 epochs = 200
 gt_weight = 3
 
@@ -97,6 +97,8 @@ model.train()
 
 rec_loss = []
 rec_acc = []
+rec_test_loss = []
+rec_test_acc = []
 noise_img = {
     "t1000": [],
     "t500": [],
@@ -142,7 +144,7 @@ for epoch in range(epochs):
         pred = discriminator(out)
         label_loss = label_sim_loss(pred, y)
 
-        loss = deno_loss + 0.3*label_loss if epoch>0 and rec_acc[-1] > 0.79 else deno_loss
+        loss = deno_loss #+ 0.3*label_loss if epoch>0 and rec_acc[-1] > 0.79 else deno_loss
         loss.backward()
         optimizer.step()
 
@@ -176,7 +178,7 @@ for epoch in range(epochs):
         # discriminator loss
         pred = discriminator(out)
         label_loss = label_sim_loss(pred, y)
-        loss = deno_loss + 0.3*label_loss if rec_acc[-1] > 0.79 else deno_loss
+        loss = deno_loss #+ 0.3*label_loss
         test_noise_prediction_loss += loss.item()
         # calculate accuracy
         pred = torch.argmax(discriminator(out), dim=1)
@@ -184,12 +186,17 @@ for epoch in range(epochs):
         total_samples += x.size(0)
 
     test_acc = total_correct / total_samples
+    if len(rec_test_acc) == 0 or test_acc > max(rec_test_acc):
+        torch.save(model.state_dict(), f"TriDD_best_model.pth")
+        print("Best Model saved!")
+    rec_test_acc.append(test_acc)
+    rec_test_loss.append(test_noise_prediction_loss / batch_idx)
     print(f"Test complete! Test Denoising Loss: {test_noise_prediction_loss / batch_idx:.4f}, Test Accuracy: {test_acc:.4f}")
 
 print("Finish!!")
 
-# save the model
-torch.save(model.state_dict(), '3dd.pt')
+# load the best model
+model.load_state_dict(torch.load("TriDD_best_model.pth"))
 
 exp_data = {
     'rec_loss': rec_loss,
