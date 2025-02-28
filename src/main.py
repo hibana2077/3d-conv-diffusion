@@ -216,7 +216,8 @@ with open(file_name, 'w') as f:
 # generate some images (makegrid) (label min(10,classes))
 model.eval()
 with torch.no_grad():
-    class_labels = torch.randint(0, classes, (test_batch_size,)).to(DEVICE)
+    # class_labels = torch.randint(0, classes, (test_batch_size,)).to(DEVICE)
+    class_labels = torch.arange(0, classes).long().to(DEVICE)
     noise = torch.randn(test_batch_size, *img_size).permute(0, 3, 1, 2).to(DEVICE)
     # noise = noise / noise.std(dim=(1, 2, 3), keepdim=True)
     noise = noise.detach()
