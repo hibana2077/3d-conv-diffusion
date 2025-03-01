@@ -221,7 +221,7 @@ def save_noise_images(noise_img):
 # -------------------------
 # 主訓練流程
 # -------------------------
-print("開始訓練 TriDD ...")
+print("Starting training TriDD ...")
 model.train()
 
 # 用來儲存各 epoch 訓練與驗證資訊
