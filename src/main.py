@@ -101,8 +101,8 @@ def count_parameters(model: nn.Module):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 print(f"Device: {DEVICE}")
-print("模型參數數量 (百萬): ", count_parameters(model) / 1e6)
-print("判別器參數數量 (百萬): ", count_parameters(discriminator) / 1e6)
+print(f"Model parameters(M): {count_parameters(model) / 1e6:.2f}")
+print(f"Discriminator parameters(M): {count_parameters(discriminator) / 1e6:.2f}")
 
 # -------------------------
 # 定義訓練、驗證與生成影像的函數
