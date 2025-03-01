@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 
 from models import SinusoidalPosEmb, ConvBlock, Denoiser, Diffusion
 from timm.models.ghostnet import ghostnet_050
+from timm.models.inception_v4 import InceptionV4
 from tridd_models import TriDD
 from utils import add_noise_process, correct_subset
 
