@@ -243,18 +243,18 @@ for epoch in range(epochs):
     train_loss, train_acc = train_epoch(model, discriminator, train_loader, optimizer, DEVICE, epoch, noise_img)
     rec_loss.append(train_loss)
     rec_acc.append(train_acc)
-    print(f"Epoch {epoch+1}/{epochs} 訓練完成！平均損失：{train_loss:.4f}，訓練準確率：{train_acc:.4f}")
+    print(f"Epoch {epoch+1}/{epochs} Training Done! Avg loss: {train_loss:.4f}, acc: {train_acc:.4f}")
     
     test_loss, test_acc = validate(model, discriminator, test_loader, DEVICE, epoch)
     rec_test_loss.append(test_loss)
     rec_test_acc.append(test_acc)
-    print(f"Epoch {epoch+1}/{epochs} 驗證完成！平均損失：{test_loss:.4f}，驗證準確率：{test_acc:.4f}")
+    print(f"Epoch {epoch+1}/{epochs} Training Done! Avg loss: {test_loss:.4f}, acc: {test_acc:.4f}")
     
     # 儲存最佳模型
     if test_acc > best_test_acc:
         best_test_acc = test_acc
         torch.save(model.state_dict(), "TriDD_best_model.pth")
-        print("最佳模型已儲存！")
+        print("Best model saved!")
 
 print("訓練結束！")
 
