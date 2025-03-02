@@ -1,6 +1,5 @@
-import torch
-import torch.nn as nn
+from timm.models.inception_v4 import InceptionV4
 
-# class_labels = torch.randint(0, 10, (10,))
-class_labels = torch.arange(0, 10).long()
-print(class_labels)
+model = InceptionV4()
+
+print(f"Model parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
